@@ -1,73 +1,51 @@
-# React + TypeScript + Vite
+# 深渊行者 - 单人AI跑团模拟器
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+基于 React + TypeScript + Vite 开发的网页版跑团游戏，支持与 AI 队友协作冒险。
 
-Currently, two official plugins are available:
+## 功能特性
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- 🎮 **战术地图**：网格化战棋移动，Token 拖拽操作
+- 🤖 **AI 队友**：基于 SiliconFlow/DeepSeek 的智能 NPC，可自然对话
+- ⚔️ **回合制行动**：玩家与 AI 交替行动，沉浸式体验
+- 🎨 **暗黑地牢风 UI**：科技感动态界面
 
-## React Compiler
+## 快速开始
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+# 安装依赖
+npm install
 
-## Expanding the ESLint configuration
+# 配置 API Key（必须）
+echo VITE_SILICONFLOW_API_KEY=sk-你的密钥 > .env.local
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+# 启动开发服务器
+npm run dev
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+# 浏览器访问 http://localhost:5173
+游戏操作
+鼠标拖拽：移动角色 Token
+右侧输入框：输入行动指令（如"检查血迹"、"准备战斗"）
+AI 响应：队友莱拉会根据场景智能回应
+技术栈
+React 18 + TypeScript
+Vite 5
+Zustand（状态管理）
+HTML5 Canvas（地图渲染）
+SiliconFlow API（AI 对话）
+项目结构
+复制
+src/
+├── components/    # 组件（地图、对话面板）
+├── services/      # AI 服务
+├── store/         # 状态管理
+└── App.tsx        # 主应用
+注意事项
+.env.local 文件包含 API 密钥，请勿提交到 Git
+首次运行需注册 SiliconFlow 获取免费 API Key
+开发计划
+[ ] 战斗检定系统（骰子判定）
+[ ] 角色头像立绘
+[ ] 地图贴图资源
+[ ] 存档功能
+作者：yuci-cloud
+GitHub：https://github.com/yuci-cloud/trpg-simulator
