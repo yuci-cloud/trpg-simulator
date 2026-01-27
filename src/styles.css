@@ -1,0 +1,26 @@
+:root {
+  --bg-primary: #0f0f1e;      /* 深蓝黑背景 */
+  --bg-secondary: #1a1a2e;    /* 面板背景 */
+  --bg-tertiary: #16213e;     /* 交互区域 */
+  --accent-red: #e94560;      /* 强调色（危险/战斗） */
+  --accent-gold: #ffd700;     /* 强调色（宝藏/重要） */
+  --accent-green: #7ed321;    /* 队友/生命 */
+  --text-primary: #eee;       /* 主要文字 */
+  --text-secondary: #888;     /* 次要文字 */
+  --border-color: #2a2a4a;    /* 边框 */
+  --grid-line: #2a2a4a;       /* 网格线 */
+  --fog-color: rgba(0, 0, 0, 0.7); /* 战争迷雾 */
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  overflow: hidden;
+}
