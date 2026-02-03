@@ -11,6 +11,19 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  --bg-primary: #0f0f1e;
+  --bg-secondary: #1a1a2e;
+  --bg-tertiary: #16213e;
+  --accent-red: #e94560;
+  --accent-gold: #ffd700;
+  --accent-green: #7ed321;
+  
+  /* 文字颜色调亮 */
+  --text-primary: #ffffff;      /* 原来是 #eee，现在纯白 */
+  --text-secondary: #cccccc;    /* 原来是 #888，现在亮灰 */
+  --text-muted: #999999;        /* 新增：用于次要信息 */
+  
+  --border-color: #3a3a5a;      /* 边框也稍微亮一点 */
 }
 
 a {
@@ -66,7 +79,19 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 }
-
+@keyframes diceRoll {
+  0% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(180deg) scale(1.2); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+@keyframes loadingSlide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+.dice-icon {
+  display: inline-block;
+  animation: diceRoll 0.5s ease-out;
+}	
 @keyframes slideUp {
   from { transform: translate(-50%, 20px); opacity: 0; }
   to { transform: translate(-50%, 0); opacity: 1; }
@@ -91,4 +116,20 @@ button:focus-visible {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* 确保文字清晰 */
+body {
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 禁用选中，提升游戏感 */
+button, .choice-btn {
+  user-select: none;
 }

@@ -229,7 +229,8 @@ export const TacticalMap: React.FC = () => {
       justifyContent: 'space-between',
       alignItems: 'center',
       fontSize: '13px',
-      color: 'var(--text-secondary)'
+      color: '#cccccc',
+	  textShadow: '0 1px 2px rgba(0,0,0,0.5)'
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <span style={{ color: 'var(--accent-red)' }}>◉</span>
