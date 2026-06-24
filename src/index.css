@@ -3,36 +3,30 @@
   line-height: 1.5;
   font-weight: 400;
 
-  color-scheme: light dark;
+  color-scheme: dark;
   color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  background-color: #0a0a15;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  --bg-primary: #0f0f1e;
-  --bg-secondary: #1a1a2e;
-  --bg-tertiary: #16213e;
-  --accent-red: #e94560;
-  --accent-gold: #ffd700;
-  --accent-green: #7ed321;
-  
-  /* 文字颜色调亮 */
-  --text-primary: #ffffff;      /* 原来是 #eee，现在纯白 */
-  --text-secondary: #cccccc;    /* 原来是 #888，现在亮灰 */
-  --text-muted: #999999;        /* 新增：用于次要信息 */
-  
-  --border-color: #3a3a5a;      /* 边框也稍微亮一点 */
+
+  /* 克苏鲁主题配色 */
+  --bg-deep: #0a0a15;           /* 深邃黑 */
+  --bg-dark: #1a1a2a;           /* 暗紫黑 */
+  --bg-card: #14161f;           /* 卡牌背景 */
+  --accent-blood: #8b0000;      /* 暗血红 */
+  --accent-void: #2d1b4e;       /* 虚空紫 */
+  --accent-old-gold: #c9a961;   /* 旧金 */
+  --san-purple: #6a4c93;        /* 理智紫 */
+  --text-light: #d4d4d4;
+  --text-dim: #8a8a8a;
+  --border-color: #4a3a5a;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
+* {
+  box-sizing: border-box;
 }
 
 body {
@@ -41,11 +35,19 @@ body {
   place-items: center;
   min-width: 320px;
   min-height: 100vh;
+  background: linear-gradient(135deg, #0a0a15 0%, #1a1a2a 100%);
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+#root {
+  width: 100%;
+  height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  font-weight: 600;
 }
 
 button {
@@ -55,81 +57,159 @@ button {
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
-  background-color: #1a1a1a;
   cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  transition: all 0.3s;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
-}
-@keyframes diceRoll {
-  0% { transform: rotate(0deg) scale(1); }
-  50% { transform: rotate(180deg) scale(1.2); }
-  100% { transform: rotate(360deg) scale(1); }
-}
-@keyframes loadingSlide {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
-}
-.dice-icon {
-  display: inline-block;
-  animation: diceRoll 0.5s ease-out;
-}	
-@keyframes slideUp {
-  from { transform: translate(-50%, 20px); opacity: 0; }
-  to { transform: translate(-50%, 0); opacity: 1; }
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
-@keyframes dots {
-  0%, 20% { content: '.'; }
-  40% { content: '..'; }
-  60%, 100% { content: '...'; }
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
-/* 确保文字清晰 */
-body {
-  font-weight: 400;
-  -webkit-font-smoothing: antialiased;
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 /* 禁用选中，提升游戏感 */
-button, .choice-btn {
+button, .card, .enemy {
   user-select: none;
+  -webkit-user-select: none;
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(139, 0, 0, 0.5);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 0, 0, 0.7);
+}
+
+/* 动画 */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translate(-50%, 20px);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 500px;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes diceRoll {
+  0% {
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    transform: rotate(180deg) scale(1.2);
+  }
+  100% {
+    transform: rotate(360deg) scale(1);
+  }
+}
+
+/* 卡牌抽取动画 */
+@keyframes cardDraw {
+  from {
+    opacity: 0;
+    transform: translateY(100px) scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 伤害数字动画 */
+@keyframes damageNumber {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-50px) scale(1.5);
+  }
+}
+
+/* 克苏鲁风格脉动 */
+@keyframes eldritch-pulse {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(106, 76, 147, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(106, 76, 147, 0.6);
+  }
+}
+
+/* 理智值低警告闪烁 */
+@keyframes sanity-warning {
+  0%, 100% {
+    border-color: #8b0000;
+  }
+  50% {
+    border-color: #ff4444;
+  }
+}
+
+/* 响应式设计 */
+@media (max-width: 1024px) {
+  :root {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 768px) {
+  :root {
+    font-size: 12px;
+  }
 }

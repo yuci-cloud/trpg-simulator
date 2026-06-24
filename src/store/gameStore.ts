@@ -1,326 +1,432 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { StoryGenerator } from '../services/StoryGenerator';
+import type { Card } from '../data/cards';
+import { getStarterDeck } from '../data/cards';
+import type { GameEvent, EventOutcome } from '../data/events';
+import { getRandomEvent } from '../data/events';
+import type { Enemy } from '../data/enemies';
+import { getRandomEncounter, getBossEncounter } from '../data/enemies';
+import type { CharacterClass } from '../data/characters';
 
 interface PlayerStats {
   name: string;
   avatar: string;
   hp: number;
   maxHp: number;
-  mp: number;
-  maxMp: number;
-  level: number;
-  exp: number;
+  sanity: number;
+  maxSanity: number;
+  gold: number;
   stats: {
     str: number;
     dex: number;
     int: number;
+    san: number;
   };
+  deck: Card[];
+  madnessLevel: number; // 0-3，疯狂等级
 }
 
-interface GameEvent {
-  id: string;
-  description: string;
-  choices: GameChoice[];
-  requiredCheck?: {
-    stat: 'str' | 'dex' | 'int';
-    difficulty: number;
-  };
-}
+export type NodeType = 'start' | 'combat' | 'event' | 'rest' | 'shop' | 'boss' | 'elite';
 
-interface Item {
+interface GameNode {
   id: string;
   name: string;
-  type: 'weapon' | 'armor' | 'consumable' | 'key';
-  description: string;
-  icon: string;
+  type: NodeType;
+  x: number;
+  y: number;
+  connectedTo: string[];
 }
 
-interface GameChoice {
-  id: string;
-  text: string;
-  type: 'combat' | 'explore' | 'talk' | 'item';
-  consequence?: string;
-  requiredCheck?: {
-    stat: 'str' | 'dex' | 'int';
-    difficulty: number;
-  };
-}
-
-interface GameScene {
-  id: string;
-  title: string;
-  description: string;
-  choices: GameChoice[];
-  backgroundImage?: string;
-}
-
-export type GameScreen = 'main' | 'inventory' | 'status' | 'settings';
+export type GameScreen = 'home' | 'character-select' | 'main' | 'inventory' | 'combat' | 'reward' | 'settings';
 
 interface GameState {
   player: PlayerStats;
-  inventory: Item[];
-  currentScene: GameScene;
-  history: { type: 'scene' | 'choice' | 'combat' | 'loot'; content: string; timestamp: number }[];
+  selectedClass: string | null;
+  currentScene: GameEvent | null;
   currentScreen: GameScreen;
   isProcessing: boolean;
+
+  // 节点系统
   currentNodeId: string;
-  nodes: Array<{
-    id: string;
-    name: string;
-    type: 'start' | 'combat' | 'event' | 'boss' | 'safe';
-    x: number;
-    y: number;
-    connectedTo: string[];
-  }>;
+  nodes: GameNode[];
   visitedNodes: string[];
-  
-  makeChoice: (choiceId: string) => Promise<void>;
+
+  // 战斗相关
+  currentEnemies: Enemy[];
+  combatVictory: boolean;
+
+  // 历史记录
+  history: Array<{ type: string; content: string; timestamp: number }>;
+
+  // Actions
+  startNewGame: (characterClass: CharacterClass) => void;
+  makeChoice: (choiceId: string) => void;
   setScreen: (screen: GameScreen) => void;
-  addToInventory: (item: Item) => void;
-  removeFromInventory: (itemId: string) => void;
-  useItem: (itemId: string) => void;
-  updatePlayerStats: (stats: Partial<PlayerStats>) => void;
-  addHistory: (entry: { type: 'scene' | 'choice' | 'combat' | 'loot'; content: string }) => void;
   moveToNode: (nodeId: string) => void;
+  addToInventory: (card: Card) => void;
+  removeFromInventory: (cardId: string) => void;
+  updatePlayerStats: (stats: Partial<PlayerStats>) => void;
+  addHistory: (entry: { type: string; content: string }) => void;
+  startCombat: (enemies: Enemy[]) => void;
+  endCombat: (victory: boolean, rewards?: { gold?: number; cards?: Card[] }) => void;
+  applyMadness: () => void;
   resetGame: () => void;
 }
+
+// 初始节点地图
+const INITIAL_NODES: GameNode[] = [
+  // Layer 1
+  { id: 'start', name: '遗忘墓穴', type: 'start', x: 0, y: 0, connectedTo: ['combat1'] },
+  { id: 'combat1', name: '黑暗走廊', type: 'combat', x: 1, y: 0, connectedTo: ['event1', 'combat2'] },
+  { id: 'event1', name: '神秘房间', type: 'event', x: 2, y: -1, connectedTo: ['rest1'] },
+  { id: 'combat2', name: '腐朽大厅', type: 'combat', x: 2, y: 1, connectedTo: ['rest1'] },
+  { id: 'rest1', name: '篝火', type: 'rest', x: 3, y: 0, connectedTo: ['combat3'] },
+
+  // Layer 2
+  { id: 'combat3', name: '扭曲回廊', type: 'combat', x: 4, y: 0, connectedTo: ['event2', 'elite1'] },
+  { id: 'event2', name: '古老遗迹', type: 'event', x: 5, y: -1, connectedTo: ['shop1'] },
+  { id: 'elite1', name: '污染圣殿', type: 'elite', x: 5, y: 1, connectedTo: ['shop1'] },
+  { id: 'shop1', name: '神秘商人', type: 'shop', x: 6, y: 0, connectedTo: ['combat4'] },
+
+  // Layer 3
+  { id: 'combat4', name: '深渊边缘', type: 'combat', x: 7, y: 0, connectedTo: ['event3', 'combat5'] },
+  { id: 'event3', name: '禁忌之地', type: 'event', x: 8, y: -1, connectedTo: ['rest2'] },
+  { id: 'combat5', name: '黑暗深处', type: 'combat', x: 8, y: 1, connectedTo: ['rest2'] },
+  { id: 'rest2', name: '最后营地', type: 'rest', x: 9, y: 0, connectedTo: ['boss'] },
+  { id: 'boss', name: '深渊王座', type: 'boss', x: 10, y: 0, connectedTo: [] },
+];
 
 export const useGameStore = create<GameState>()(
   persist(
     (set, get) => ({
       player: {
-        name: '冒险者',
-        avatar: '👤',
+        name: '调查员',
+        avatar: '🕵️',
         hp: 50,
         maxHp: 50,
-        mp: 30,
-        maxMp: 30,
-        level: 1,
-        exp: 0,
+        sanity: 50,
+        maxSanity: 50,
+        gold: 100,
         stats: {
           str: 14,
           dex: 12,
-          int: 10
-        }
+          int: 10,
+          san: 50
+        },
+        deck: getStarterDeck(),
+        madnessLevel: 0
       },
-      inventory: [
-        { id: 'potion1', name: '生命药水', type: 'consumable', description: '恢复 20 HP', icon: '🧪' },
-        { id: 'sword1', name: '铁剑', type: 'weapon', description: '攻击力 +5', icon: '⚔️' }
-      ],
-      currentNodeId: 'start',
-      visitedNodes: ['start'],
-      nodes: [
-        { id: 'start', name: '地牢入口', type: 'start', x: 0, y: 0, connectedTo: ['hallway'] },
-        { id: 'hallway', name: '血腥走廊', type: 'combat', x: 1, y: 0, connectedTo: ['start', 'chamber', 'pit'] },
-        { id: 'chamber', name: '秘密石室', type: 'event', x: 2, y: -1, connectedTo: ['hallway', 'boss'] },
-        { id: 'pit', name: '深渊边缘', type: 'combat', x: 2, y: 1, connectedTo: ['hallway'] },
-        { id: 'boss', name: '王座间', type: 'boss', x: 3, y: 0, connectedTo: ['chamber'] }
-      ],
-      currentScene: {
-        id: 'cell_awakening',
-        title: '囚室·苏醒',
-        description: `金属撞击声将你从黑暗中拽回现实。
 
-你躺在冰冷的石板上，手腕被粗糙的麻绳磨得生疼。空气中弥漫着霉味和某种甜腻的腐臭——像是放了一个月的葡萄酒混合着铁锈味。
-
-"别动，"一个低沉的女声从左侧传来，"你吵醒了守卫，我们都得死。"
-
-借着墙缝透进的微光，你看到一个身披破旧铠甲的女人。她的脸藏在阴影里，只能看到下巴上一道狰狞的伤疤。她手里握着一把缺了口的短剑，剑尖正对着你的喉咙。
-
-"听着，"她压低声音，"我是莱拉。不管你犯了什么罪被扔进来，现在我们有同一个问题——"她踢了踢地上的尸体，一具穿着狱卒制服的东西，"这家伙半小时前还是活的。如果他没按时回去报告，整个地牢都会警报。"
-
-她解开了你的绳子："你能站起来吗？我们需要在换岗前离开这里。你有三分钟说服我你不值得被扔下等死。"`,
-        choices: [
-          { 
-            id: 'check_cell', 
-            text: '检查囚室环境，寻找线索', 
-            type: 'explore',
-            consequence: 'reveal_exit'
-          },
-          { 
-            id: 'ask_crime', 
-            text: '"你是谁？我为什么会在这里？"', 
-            type: 'talk',
-            consequence: 'laila_backstory'
-          },
-          { 
-            id: 'attack_laila', 
-            text: '趁她不注意抢夺武器（力量检定 12）', 
-            type: 'combat',
-            requiredCheck: { stat: 'str', difficulty: 12 },
-            consequence: 'combat_laila'
-          },
-          { 
-            id: 'cooperate', 
-            text: '"我配合，但你知道出口在哪吗？"', 
-            type: 'talk',
-            consequence: 'laila_plan'
-          }
-        ]
-      },
-      history: [],
-      currentScreen: 'main',
+      selectedClass: null,
+      currentScene: null,
+      currentScreen: 'home',
       isProcessing: false,
-      
-      makeChoice: async (choiceId: string) => {
-        const choice = get().currentScene.choices.find(c => c.id === choiceId);
+
+      currentNodeId: 'start',
+      nodes: INITIAL_NODES,
+      visitedNodes: ['start'],
+
+      currentEnemies: [],
+      combatVictory: false,
+
+      history: [],
+
+      startNewGame: (characterClass) => {
+        set({
+          selectedClass: characterClass.id,
+          player: {
+            name: characterClass.name,
+            avatar: characterClass.avatar,
+            hp: characterClass.startingHp,
+            maxHp: characterClass.startingHp,
+            sanity: characterClass.startingSanity,
+            maxSanity: characterClass.startingSanity,
+            gold: characterClass.startingGold,
+            stats: characterClass.stats,
+            deck: [...characterClass.starterDeck],
+            madnessLevel: 0
+          },
+          currentNodeId: 'start',
+          visitedNodes: ['start'],
+          currentScene: null,
+          history: [],
+          currentEnemies: []
+        });
+      },
+
+      makeChoice: (choiceId: string) => {
+        const state = get();
+        const scene = state.currentScene;
+
+        if (!scene) return;
+
+        const choice = scene.choices.find(c => c.id === choiceId);
         if (!choice) return;
-        
-        get().addHistory({ type: 'choice', content: `选择了：${choice.text}` });
+
+        get().addHistory({ type: 'choice', content: `你选择了：${choice.text}` });
         set({ isProcessing: true });
-        
-        let checkResult = null;
-        if (choice.requiredCheck) {
+
+        // 处理检定
+        let outcome: EventOutcome = choice.successOutcome;
+
+        if (choice.check) {
           const roll = Math.floor(Math.random() * 20) + 1;
-          const statValue = get().player.stats[choice.requiredCheck.stat];
+          const statValue = state.player.stats[choice.check.stat];
           const modifier = Math.floor((statValue - 10) / 2);
           const total = roll + modifier;
-          const success = total >= choice.requiredCheck.difficulty;
-          
-          checkResult = { success, roll, total, difficulty: choice.requiredCheck.difficulty };
-          
-          get().addHistory({ 
-            type: 'combat', 
-            content: `🎲 ${choice.requiredCheck.stat.toUpperCase()}检定：${roll} + ${modifier} = ${total} (目标${choice.requiredCheck.difficulty}) ${success ? '✓' : '✗'}`
+          const success = total >= choice.check.difficulty;
+
+          get().addHistory({
+            type: 'roll',
+            content: `🎲 ${choice.check.stat.toUpperCase()}检定：${roll} + ${modifier} = ${total} (DC${choice.check.difficulty}) ${success ? '✓成功' : '✗失败'}`
           });
-          
-          await new Promise(r => setTimeout(r, 600));
+
+          outcome = success ? choice.successOutcome : (choice.failureOutcome || choice.successOutcome);
         }
-        
-        try {
-          const generator = new StoryGenerator();
-          const partyStatus = `HP:${get().player.hp}, 位置:${get().currentNodeId}`;
-          const location = get().nodes.find(n => n.id === get().currentNodeId)?.name || '未知区域';
-          
-          const generated = await generator.generateScene(
-            get().currentScene.description,
-            choice.text,
-            location,
-            partyStatus
-          );
-          
-          const newScene: GameScene = {
-            id: `ai_${Date.now()}`,
-            title: generated.title,
-            description: generated.description,
-            choices: generated.choices
-          };
-          
-          if (generated.loot && generated.loot.length > 0) {
-            generated.loot.forEach(item => {
-              get().addToInventory({
-                id: `loot_${Date.now()}_${Math.random()}`,
-                name: item.name,
-                type: item.type as any || 'consumable',
-                description: 'AI生成的物品',
-                icon: item.icon
+
+        // 应用结果
+        setTimeout(() => {
+          get().addHistory({ type: 'outcome', content: outcome.description });
+
+          if (outcome.rewards) {
+            const { hp, sanity, maxHp, gold, cards } = outcome.rewards;
+
+            if (hp !== undefined) {
+              if (hp === 999) {
+                // 完全恢复
+                get().updatePlayerStats({ hp: state.player.maxHp });
+              } else {
+                const newHp = Math.max(0, Math.min(state.player.maxHp, state.player.hp + hp));
+                get().updatePlayerStats({ hp: newHp });
+              }
+            }
+
+            if (sanity !== undefined) {
+              const newSanity = Math.max(0, Math.min(state.player.maxSanity, state.player.sanity + sanity));
+              get().updatePlayerStats({ sanity: newSanity });
+
+              // 检查疯狂
+              if (newSanity === 0) {
+                get().applyMadness();
+              }
+            }
+
+            if (maxHp !== undefined) {
+              get().updatePlayerStats({
+                maxHp: state.player.maxHp + maxHp,
+                hp: state.player.hp + maxHp
               });
-              get().addHistory({ type: 'loot', content: `获得：${item.name}` });
-            });
+            }
+
+            if (gold !== undefined) {
+              const newGold = Math.max(0, state.player.gold + gold);
+              get().updatePlayerStats({ gold: newGold });
+            }
+
+            if (cards) {
+              cards.forEach(cardId => {
+                // 这里应该从CARDS数据库获取卡牌
+                get().addHistory({ type: 'reward', content: `获得卡牌：${cardId}` });
+              });
+            }
           }
-          
-          set({ 
-            currentScene: newScene, 
-            isProcessing: false 
-          });
-          
-        } catch (error) {
-          console.error('生成失败:', error);
-          set({
-            currentScene: {
-              id: 'error_fallback',
-              title: '迷失',
-              description: '莱拉摇摇头："这里有些不对劲...我们先退回安全的地方重新规划。"',
-              choices: [
-                { id: 'retry', text: '重新探索', type: 'explore' },
-                { id: 'rest', text: '原地休息', type: 'safe' }
-              ]
-            },
-            isProcessing: false
-          });
-        }
+
+          if (outcome.combat) {
+            // 触发战斗
+            const enemies = getRandomEncounter('normal');
+            get().startCombat(enemies);
+          } else {
+            // 继续探索
+            set({ isProcessing: false, currentScene: null });
+          }
+        }, 800);
       },
-      
-      moveToNode: (nodeId) => set((state) => ({
-        currentNodeId: nodeId,
-        visitedNodes: [...new Set([...state.visitedNodes, nodeId])]
-      })),
-      
+
       setScreen: (screen) => set({ currentScreen: screen }),
-      
-      addToInventory: (item) => set((state) => ({ 
-        inventory: [...state.inventory, item] 
-      })),
-      
-      removeFromInventory: (itemId) => set((state) => ({
-        inventory: state.inventory.filter(i => i.id !== itemId)
-      })),
-      
-      useItem: (itemId) => {
-        const item = get().inventory.find(i => i.id === itemId);
-        if (!item) return;
-        
-        if (item.type === 'consumable') {
-          if (item.id === 'potion1') {
-            get().updatePlayerStats({ hp: Math.min(get().player.hp + 20, get().player.maxHp) });
-          }
-          get().removeFromInventory(itemId);
-          get().addHistory({ type: 'loot', content: `使用了 ${item.name}` });
+
+      moveToNode: (nodeId) => {
+        const state = get();
+        const node = state.nodes.find(n => n.id === nodeId);
+
+        if (!node) return;
+
+        // 检查是否相邻
+        const currentNode = state.nodes.find(n => n.id === state.currentNodeId);
+        if (currentNode && !currentNode.connectedTo.includes(nodeId)) {
+          return;
+        }
+
+        set({
+          currentNodeId: nodeId,
+          visitedNodes: [...new Set([...state.visitedNodes, nodeId])]
+        });
+
+        // 触发节点事件
+        switch (node.type) {
+          case 'combat':
+            const enemies = getRandomEncounter('normal');
+            get().startCombat(enemies);
+            break;
+
+          case 'elite':
+            const eliteEnemies = getRandomEncounter('hard');
+            get().startCombat(eliteEnemies);
+            break;
+
+          case 'boss':
+            const boss = getBossEncounter();
+            get().startCombat(boss);
+            break;
+
+          case 'event':
+            const event = getRandomEvent(state.visitedNodes);
+            set({ currentScene: event, currentScreen: 'main' });
+            break;
+
+          case 'rest':
+            const campfireEvent = getRandomEvent(['campfire']);
+            set({ currentScene: campfireEvent, currentScreen: 'main' });
+            break;
+
+          case 'shop':
+            const shopEvent = getRandomEvent(['mysterious_merchant']);
+            set({ currentScene: shopEvent, currentScreen: 'main' });
+            break;
         }
       },
-      
-      updatePlayerStats: (stats) => set((state) => ({
-        player: { ...state.player, ...stats }
-      })),
-      
-      addHistory: (entry) => set((state) => ({
-        history: [...state.history, { ...entry, timestamp: Date.now() }]
-      })),
-      
-      resetGame: () => set({
-        player: {
-          name: '冒险者',
-          avatar: '👤',
-          hp: 50,
-          maxHp: 50,
-          mp: 30,
-          maxMp: 30,
-          level: 1,
-          exp: 0,
-          stats: { str: 14, dex: 12, int: 10 }
-        },
-        inventory: [
-          { id: 'potion1', name: '生命药水', type: 'consumable', description: '恢复 20 HP', icon: '🧪' }
-        ],
-        currentScene: {
-          id: 'cell_awakening',
-          title: '囚室·苏醒',
-          description: `金属撞击声将你从黑暗中拽回现实。
 
-你躺在冰冷的石板上，手腕被粗糙的麻绳磨得生疼。空气中弥漫着霉味和某种甜腻的腐臭——像是放了一个月的葡萄酒混合着铁锈味。
+      addToInventory: (card) => {
+        const state = get();
+        set({
+          player: {
+            ...state.player,
+            deck: [...state.player.deck, card]
+          }
+        });
+      },
 
-"别动，"一个低沉的女声从左侧传来，"你吵醒了守卫，我们都得死。"
+      removeFromInventory: (cardId) => {
+        const state = get();
+        const newDeck = state.player.deck.filter((c, i) =>
+          `${c.id}_${i}` !== cardId
+        );
+        set({
+          player: {
+            ...state.player,
+            deck: newDeck
+          }
+        });
+      },
 
-借着墙缝透进的微光，你看到一个身披破旧铠甲的女人。她的脸藏在阴影里，只能看到下巴上一道狰狞的伤疤。她手里握着一把缺了口的短剑，剑尖正对着你的喉咙。
+      updatePlayerStats: (stats) => {
+        const state = get();
+        set({
+          player: { ...state.player, ...stats }
+        });
+      },
 
-"听着，"她压低声音，"我是莱拉。不管你犯了什么罪被扔进来，现在我们有同一个问题——"她踢了踢地上的尸体，一具穿着狱卒制服的东西，"这家伙半小时前还是活的。如果他没按时回去报告，整个地牢都会警报。"
+      addHistory: (entry) => {
+        const state = get();
+        set({
+          history: [...state.history, { ...entry, timestamp: Date.now() }]
+        });
+      },
 
-她解开了你的绳子："你能站起来吗？我们需要在换岗前离开这里。你有三分钟说服我你不值得被扔下等死。"`,
-          choices: [
-            { id: 'check_cell', text: '检查囚室环境，寻找线索', type: 'explore' },
-            { id: 'ask_crime', text: '"你是谁？我为什么会在这里？"', type: 'talk' },
-            { id: 'attack_laila', text: '趁她不注意抢夺武器（力量检定 12）', type: 'combat', requiredCheck: {stat: 'str', difficulty: 12} },
-            { id: 'cooperate', text: '"我配合，但你知道出口在哪吗？"', type: 'talk' }
-          ]
-        },
-        currentNodeId: 'start',
-        visitedNodes: ['start'],
-        history: [],
-        currentScreen: 'main',
-        isProcessing: false
-      })
+      startCombat: (enemies) => {
+        // 确保有敌人才开始战斗
+        if (enemies && enemies.length > 0) {
+          set({
+            currentEnemies: enemies,
+            currentScreen: 'combat'
+          });
+        } else {
+          console.error('尝试开始战斗，但没有敌人！');
+          // 如果没有敌人，直接给予奖励
+          get().addHistory({ type: 'combat', content: '✓ 遭遇战自动胜利' });
+          const goldReward = 20 + Math.floor(Math.random() * 30);
+          get().updatePlayerStats({ gold: get().player.gold + goldReward });
+          set({ currentScreen: 'reward', currentEnemies: [] });
+        }
+      },
+
+      endCombat: (victory, rewards) => {
+        const state = get();
+
+        set({ combatVictory: victory });
+
+        if (victory) {
+          get().addHistory({ type: 'combat', content: '✓ 战斗胜利！' });
+
+          // 战斗胜利后的奖励
+          if (rewards) {
+            if (rewards.gold) {
+              get().updatePlayerStats({ gold: state.player.gold + rewards.gold });
+              get().addHistory({ type: 'reward', content: `获得 ${rewards.gold} 金币` });
+            }
+
+            if (rewards.cards) {
+              rewards.cards.forEach(card => {
+                get().addToInventory(card);
+                get().addHistory({ type: 'reward', content: `获得卡牌：${card.name}` });
+              });
+            }
+          }
+
+          set({ currentScreen: 'reward', currentEnemies: [] });
+        } else {
+          get().addHistory({ type: 'combat', content: '✗ 战斗失败...' });
+          // 游戏结束逻辑
+          set({ currentScreen: 'main', currentEnemies: [] });
+        }
+      },
+
+      applyMadness: () => {
+        const state = get();
+        const newLevel = Math.min(3, state.player.madnessLevel + 1);
+
+        get().updatePlayerStats({ madnessLevel: newLevel });
+
+        const madnessMessages = [
+          '你的理智彻底崩溃了...但某种疯狂的力量觉醒了。',
+          '耳边的低语越来越清晰，你开始理解它们的意义...',
+          '现实的边界变得模糊。你已经不再是曾经的自己。',
+          '深渊凝视着你，而你也凝视着深渊。你们成为了一体。'
+        ];
+
+        get().addHistory({
+          type: 'madness',
+          content: `⚠️ 疯狂等级提升至 ${newLevel}！${madnessMessages[newLevel - 1]}`
+        });
+
+        // 恢复理智到10，但保留疯狂等级
+        get().updatePlayerStats({ sanity: 10 });
+      },
+
+      resetGame: () => {
+        set({
+          player: {
+            name: '调查员',
+            avatar: '🕵️',
+            hp: 50,
+            maxHp: 50,
+            sanity: 50,
+            maxSanity: 50,
+            gold: 100,
+            stats: { str: 14, dex: 12, int: 10, san: 50 },
+            deck: getStarterDeck(),
+            madnessLevel: 0
+          },
+          selectedClass: null,
+          currentScene: null,
+          currentScreen: 'home',
+          isProcessing: false,
+          currentNodeId: 'start',
+          visitedNodes: ['start'],
+          currentEnemies: [],
+          history: []
+        });
+      }
     }),
-    { name: 'text-rpg-save' }
+    { name: 'cthulhu-card-rpg-save' }
   )
 );
